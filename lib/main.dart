@@ -1,26 +1,19 @@
-import 'package:birthday_reminder_app/buttom_navigation_bar.dart';
-import 'package:flutter/material.dart';
-import 'package:get/get_navigation/src/root/get_material_app.dart';
+import 'package:flutter/material.dart'; import 'package:get/get.dart'; import 'package:hive_flutter/hive_flutter.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+import 'Controllaer/FriendController.dart'; import 'Model/friendAdd_model.dart'; import 'buttom_navigation_bar.dart';
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+Future main() async { WidgetsFlutterBinding.ensureInitialized();
 
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
+await Hive.initFlutter();
 
-class _MyAppState extends State<MyApp> {
-  @override
-  Widget build(BuildContext context) {
-    return GetMaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: ButtomNavigationBar(
-        
-      ),
-    );
-  }
-}
+Hive.registerAdapter(FriendModelAdapter());
+
+await Hive.openBox('friendsBox');
+
+Get.put(FriendController());
+
+runApp(const MyApp()); }
+
+class MyApp extends StatelessWidget { const MyApp({super.key});
+
+@override Widget build(BuildContext context) { return GetMaterialApp( debugShowCheckedModeBanner: false, title: 'Birthday Reminder', theme: ThemeData(primarySwatch: Colors.purple), home: const ButtomNavigationBar(), ); } }

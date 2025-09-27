@@ -1,104 +1,105 @@
 import 'package:get/get.dart';
 import 'package:uuid/uuid.dart';
-import '../Model/friendAdd_model.dart'; 
+import 'package:hive/hive.dart';
+import '../Model/friendAdd_model.dart';
 
 class FriendController extends GetxController {
-  var friendsList = <FriendModel>[].obs;
-  final Uuid _uuid = Uuid(); 
+  final Uuid _uuid = Uuid();
+  late Box _friendsBox;
+  var friendsList = [].obs;
 
-  // --- ADD FRIEND ---
-  void addFriend({
-    required String name,
-    required String birthday, 
-    String? notes,
-  }) {
-    if (name.isNotEmpty && birthday.isNotEmpty) {
-      final newFriend = FriendModel(
-        id: _uuid.v4(), 
-        name: name,
-        birthday: birthday,
-        notes: notes,
-      );
-
-      friendsList.add(newFriend);
-      _sortFriendsList(); 
-
-      Get.snackbar("Success", "Friend '${newFriend.name}' added!");
-    } else {
-      Get.snackbar("Error", "Name and Birthday cannot be empty.");
-    }
+  @override
+  void onInit() {
+    super.onInit();
+    _initHive();
   }
 
-  // --- UPDATE FRIEND ---
-  void updateFriend({
-    required String id, 
-    required String name,
-    required String birthday,
-    String? notes,
-  }) {
-    if (name.isNotEmpty && birthday.isNotEmpty) {
-      int index = friendsList.indexWhere((friend) => friend.id == id);
-      if (index != -1) {
-        // Create an updated friend model
-        final updatedFriend = FriendModel(
-          id: id, // Keep the original ID
-          name: name,
-          birthday: birthday,
-          notes: notes,
-        );
-        friendsList[index] = updatedFriend;
-        _sortFriendsList(); // Call sort after updating
-
-        Get.snackbar("Success", "Friend '${updatedFriend.name}' updated!");
-      } else {
-        Get.snackbar("Error", "Friend with ID '$id' not found for update.");
-      }
-    } else {
-      Get.snackbar("Error", "Name and Birthday cannot be empty for update.");
-    }
+  Future _initHive() async {
+    _friendsBox = await Hive.openBox('friendsBox');
+    _loadFriendsFromHive();
   }
 
-  // --- DELETE FRIEND ---
-  void deleteFriend(String id) { // ID of the friend to delete
-    int index = friendsList.indexWhere((friend) => friend.id == id);
-    if (index != -1) {
-      String removedFriendName = friendsList[index].name;
-      friendsList.removeAt(index);
-      Get.snackbar("Deleted", "Friend '$removedFriendName' removed.");
-    } else {
-      Get.snackbar("Error", "Friend with ID '$id' not found for deletion.");
-    }
+  void _loadFriendsFromHive() {
+    friendsList.assignAll(_friendsBox.values.whereType().toList());
+    _sortFriendsList();
   }
 
-  // --- PRIVATE HELPER TO SORT THE LIST ---
   void _sortFriendsList() {
     friendsList.sort((a, b) {
-      final aDate = _parseDate(a.birthday);
-      final bDate = _parseDate(b.birthday);
-
-      // Your existing sorting logic (sorts by month then day)
-      // For more robust "upcoming birthday" sorting, see previous examples
-      // that account for the current year.
-      if (aDate.month == bDate.month) {
-        return aDate.day.compareTo(bDate.day);
-      }
-      return aDate.month.compareTo(bDate.month);
+      return _calculateEffectiveBirthdayDate(
+        a.birthday,
+      ).compareTo(_calculateEffectiveBirthdayDate(b.birthday));
     });
   }
 
-  // --- DATE PARSING (Your existing method) ---
-  DateTime _parseDate(String dateStr) {
-    try {
-      // যদি format হয় dd-MM-yyyy
-      final parts = dateStr.split('-');
-      if (parts.length == 3) { 
-        return DateTime(2000, int.parse(parts[1]), int.parse(parts[0]));
-      } else if (parts.length == 2) { 
-        return DateTime(DateTime.now().year, int.parse(parts[1]), int.parse(parts[0]));
-      }
-    } catch (e) {
-      print("Date parse error for '$dateStr': $e");
+  /// Add Friend
+  void addFriend({
+    required String name,
+    required DateTime birthday,
+    String? notes,
+  }) {
+    if (name.isEmpty) {
+      Get.snackbar("Error", "Name cannot be empty.");
+      return;
     }
-    return DateTime(1900, 1, 1); 
+
+    final newFriend = FriendModel(
+      id: _uuid.v4(),
+      name: name,
+      birthday: birthday,
+      notes: notes,
+    );
+
+    _friendsBox.put(newFriend.id, newFriend);
+    _loadFriendsFromHive();
+
+    Get.snackbar("Success", "Friend '${newFriend.name}' added!");
+  }
+
+  /// Update Friend
+  void updateFriend({
+    required String id,
+    required String name,
+    required DateTime birthday,
+    String? notes,
+  }) {
+    final friendToUpdate = _friendsBox.get(id);
+    if (friendToUpdate != null) {
+      friendToUpdate.name = name;
+      friendToUpdate.birthday = birthday;
+      friendToUpdate.notes = notes;
+
+      _friendsBox.put(id, friendToUpdate);
+      _loadFriendsFromHive();
+
+      Get.snackbar("Success", "Friend '${friendToUpdate.name}' updated!");
+    } else {
+      Get.snackbar("Error", "Friend not found.");
+    }
+  }
+
+  /// Delete Friend
+  void deleteFriend(String id) {
+    final friend = _friendsBox.get(id);
+    if (friend != null) {
+      _friendsBox.delete(id);
+      friendsList.removeWhere((f) => f.id == id);
+      Get.snackbar("Deleted", "Friend '${friend.name}' removed.");
+    }
+  }
+
+  /// Calculate next upcoming birthday
+  DateTime _calculateEffectiveBirthdayDate(DateTime? birthday) {
+    if (birthday == null) {
+      return DateTime.now();
+    }
+
+    final now = DateTime.now();
+    final thisYearBirthday = DateTime(now.year, birthday.month, birthday.day);
+
+    if (thisYearBirthday.isBefore(DateTime(now.year, now.month, now.day))) {
+      return DateTime(now.year + 1, birthday.month, birthday.day);
+    }
+    return thisYearBirthday;
   }
 }

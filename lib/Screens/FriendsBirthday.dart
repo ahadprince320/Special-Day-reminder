@@ -110,7 +110,7 @@ class _FriendsBirthdayPageState extends State<FriendsBirthdayPage> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    firstFriend.birthday,
+                                    firstFriend.birthday.toString(),
                                     style: const TextStyle(color: Colors.black54),
                                   ),
                                 ],
